@@ -10,7 +10,7 @@ import { TEST_CARDS } from '../payments/mockGateway.js';
 import { cardInput } from '../services/billing.js';
 import { bookInput } from '../services/books.js';
 
-type Env = { Variables: { c: Container; user: User | null } };
+export type Env = { Variables: { c: Container; user: User | null } };
 
 async function parse<T extends ZodTypeAny>(ctx: Context, schema: T): Promise<z.infer<T>> {
   let body: unknown;
