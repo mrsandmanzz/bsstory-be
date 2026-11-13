@@ -13,7 +13,8 @@ let app: ReturnType<typeof createApp>;
 
 async function setup() {
   now = new Date('2026-01-01T00:00:00Z');
-  const c = buildContainer(await createDb('file::memory:'), () => now);
+  // No launch offer by default, so every price assertion below is about the regular prices.
+  const c = buildContainer(await createDb('file::memory:'), () => now, null);
   await c.bootstrap();
   app = createApp(async () => c);
 }
@@ -549,5 +550,83 @@ describe('what to read next', () => {
     expect((await next('moon-wants-a-nap', '?limit=99')).status).toBe(422);
     expect((await next('moon-wants-a-nap', '?exclude=Bad Slug!')).status).toBe(422);
     expect((await next('the-brave-mango-draft')).status).toBe(404);
+  });
+});
+
+describe('launch offer', () => {
+  const offer = { percent: 30, endsAt: '2026-01-31T00:00:00.000Z', label: 'Launch offer' };
+  beforeEach(async () => {
+    now = new Date('2026-01-01T00:00:00Z');
+    const c = buildContainer(await createDb('file::memory:'), () => now, offer);
+    await c.bootstrap();
+    app = createApp(async () => c);
+  });
+  const subscribe = (token: string, body: Record<string, unknown> = {}) =>
+    call('POST', '/v1/checkout/subscription', { token, body: { planId: 'yearly', card: card(), ...body } });
+  const payments = async (token: string) => (await call('GET', '/v1/billing/history', { token })).json.payments as any[];
+
+  it('lists the offer price while it runs, with the server clock and end instant', async () => {
+    const { json } = await call('GET', '/v1/plans');
+    expect(json.promo).toMatchObject({ percent: 30, endsAt: offer.endsAt });
+    expect(json.now).toBe('2026-01-01T00:00:00.000Z');
+    expect(json.plans.find((p: any) => p.id === 'yearly')).toMatchObject({ price: 399_000, promoPrice: 279_000 });
+    expect(json.plans.find((p: any) => p.id === 'monthly')).toMatchObject({ price: 49_000, promoPrice: 34_000 });
+  });
+
+  it('drops the offer the moment it ends', async () => {
+    now = new Date(offer.endsAt);
+    const { json } = await call('GET', '/v1/plans');
+    expect(json.promo).toBeNull();
+    expect(json.plans.every((p: any) => p.promoPrice === null)).toBe(true);
+  });
+
+  it('locks the discount in for a trial: nothing today, the offer price at the end, even after the offer is over', async () => {
+    const token = await login('offer-trial@x.test');
+    expect((await subscribe(token, { quotedPrice: 279_000 })).status).toBe(201);
+    expect((await payments(token))[0]).toMatchObject({ amount: 0 });
+    expect((await call('GET', '/v1/me', { token })).json.subscription).toMatchObject({
+      trial: true,
+      promoPercent: 30,
+      nextAmount: 279_000,
+    });
+
+    now = new Date('2026-03-01T00:00:00Z'); // trial over AND offer over
+    const me = (await call('GET', '/v1/me', { token })).json;
+    const paid = (await payments(token)).filter((p) => p.amount > 0);
+    expect(paid).toHaveLength(1);
+    expect(paid[0]).toMatchObject({ amount: 279_000, refId: 'yearly' }); // the price promised at signup
+    expect(me.subscription).toMatchObject({ trial: false, promoPercent: 0, nextAmount: 399_000 }); // the next renewal is regular price
+  });
+
+  it('charges the offer price at once for someone who is not eligible for a trial', async () => {
+    const token = await login('offer-returning@x.test');
+    await subscribe(token); // trial
+    await call('POST', '/v1/subscription/cancel', { token });
+    now = new Date('2026-01-10T00:00:00Z'); // trial ended, no renewal because it was cancelled, offer still on
+    expect((await call('GET', '/v1/me', { token })).json.subscription.state).toBe('expired');
+
+    expect((await subscribe(token, { quotedPrice: 279_000 })).status).toBe(201);
+    expect((await payments(token))[0]).toMatchObject({ amount: 279_000, status: 'succeeded' });
+    expect((await call('GET', '/v1/me', { token })).json.subscription).toMatchObject({ promoPercent: 0, nextAmount: 399_000 });
+  });
+
+  it('refuses without charging when the price shown is not the price now', async () => {
+    const token = await login('offer-stale@x.test');
+    const stale = await subscribe(token, { quotedPrice: 399_000 }); // regular price shown, but the offer is running
+    expect(stale.status).toBe(409);
+    expect(stale.json.error).toMatchObject({ code: 'PRICE_CHANGED', details: { price: 279_000 } });
+    expect(await payments(token)).toHaveLength(0);
+    expect((await call('GET', '/v1/me', { token })).json.trialEligible).toBe(true); // nothing was used up
+
+    now = new Date('2026-02-01T00:00:00Z'); // the offer ended while the customer was looking at the offer price
+    const expired = await subscribe(token, { quotedPrice: 279_000 });
+    expect(expired.status).toBe(409);
+    expect(expired.json.error.details).toEqual({ price: 399_000 });
+    expect(await payments(token)).toHaveLength(0);
+  });
+
+  it('still works for clients that send no quoted price', async () => {
+    const token = await login('offer-noquote@x.test');
+    expect((await subscribe(token)).status).toBe(201);
   });
 });

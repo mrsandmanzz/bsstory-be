@@ -9,6 +9,7 @@ const mapSub = (r: Record<string, unknown>): Subscription => ({
   currentPeriodEnd: String(r.current_period_end),
   cancelAtPeriodEnd: Number(r.cancel_at_period_end) === 1,
   trial: Number(r.trial) === 1,
+  promoPercent: Number(r.promo_percent ?? 0),
 });
 
 const mapPayment = (r: Record<string, unknown>): Payment => ({
@@ -116,11 +117,12 @@ export const billingRepo = (db: Db) => ({
       [
         { sql: SETTLE_SUCCESS, args: [last4, paymentId] },
         {
-          sql: `INSERT INTO subscriptions (id,user_id,plan_id,current_period_start,current_period_end,cancel_at_period_end,trial)
-                VALUES (?,?,?,?,?,0,?)
+          sql: `INSERT INTO subscriptions (id,user_id,plan_id,current_period_start,current_period_end,cancel_at_period_end,trial,promo_percent)
+                VALUES (?,?,?,?,?,0,?,?)
                 ON CONFLICT(user_id) DO UPDATE SET plan_id=excluded.plan_id, current_period_start=excluded.current_period_start,
-                  current_period_end=excluded.current_period_end, cancel_at_period_end=0, trial=excluded.trial`,
-          args: [sub.id, sub.userId, sub.planId, sub.currentPeriodStart, sub.currentPeriodEnd, sub.trial ? 1 : 0],
+                  current_period_end=excluded.current_period_end, cancel_at_period_end=0, trial=excluded.trial,
+                  promo_percent=excluded.promo_percent`,
+          args: [sub.id, sub.userId, sub.planId, sub.currentPeriodStart, sub.currentPeriodEnd, sub.trial ? 1 : 0, sub.promoPercent],
         },
       ],
       'write',
@@ -136,7 +138,7 @@ export const billingRepo = (db: Db) => ({
     const [update] = await db.batch(
       [
         {
-          sql: `UPDATE subscriptions SET current_period_start = ?, current_period_end = ?, trial = 0
+          sql: `UPDATE subscriptions SET current_period_start = ?, current_period_end = ?, trial = 0, promo_percent = 0
                 WHERE user_id = ? AND current_period_end = ? AND cancel_at_period_end = 0`,
           args: [renewed.currentPeriodStart, renewed.currentPeriodEnd, renewed.userId, expectedPeriodEnd],
         },

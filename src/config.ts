@@ -1,3 +1,4 @@
+import { parsePromo, type Promo } from './domain/promo.js';
 import type { Plan } from './domain/types.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -27,6 +28,16 @@ export const config = {
     .split(',')
     .map((s) => s.trim().toLowerCase()),
 };
+
+/**
+ * The launch offer. In development it defaults to a fixed, visible demo offer so the countdown can be seen;
+ * in production there is NO promo unless PROMO_PERCENT and PROMO_ENDS_AT are both set.
+ */
+export const promo: Promo | null = parsePromo(
+  process.env.PROMO_PERCENT ?? (isProduction ? undefined : '30'),
+  process.env.PROMO_ENDS_AT ?? (isProduction ? undefined : '2026-11-30T16:59:59Z'), // 23:59:59 WIB
+  process.env.PROMO_LABEL,
+);
 
 /** Length of the free trial offered to an account that has never subscribed. Same as Epic, Vooks and Lingokids. */
 export const TRIAL_DAYS = 7;

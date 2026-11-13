@@ -1,4 +1,5 @@
-import { config } from './config.js';
+import { config, promo } from './config.js';
+import type { Promo } from './domain/promo.js';
 import { createDb, isUniqueViolation, type Db } from './db/client.js';
 import { migrate } from './db/schema.js';
 import { seedIfEmpty } from './db/seed.js';
@@ -10,11 +11,11 @@ import { billingService } from './services/billing.js';
 import { booksService } from './services/books.js';
 
 /** Composition root: the only place that wires concrete implementations together. */
-export function buildContainer(db: Db, clock: () => Date = () => new Date()) {
+export function buildContainer(db: Db, clock: () => Date = () => new Date(), offer: Promo | null = promo) {
   const users = usersRepo(db);
   const books = booksRepo(db);
   const billing = billingRepo(db);
-  const billingSvc = billingService(billing, books, clock);
+  const billingSvc = billingService(billing, books, clock, offer);
   return {
     db,
     auth: authService(users, clock),

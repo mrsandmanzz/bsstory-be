@@ -22,5 +22,8 @@ export const Errors = {
   paymentFailed: (reason: string) => new AppError(402, 'PAYMENT_FAILED', reason),
   paymentInProgress: () => new AppError(409, 'PAYMENT_IN_PROGRESS', 'A payment for this is already being processed'),
   keyReuse: () => new AppError(422, 'IDEMPOTENCY_KEY_REUSED', 'This Idempotency-Key was already used for a different request'),
+  /** The price the customer was shown is not what it costs now (e.g. the offer ended mid-checkout). Nothing was charged. */
+  priceChanged: (price: number) =>
+    new AppError(409, 'PRICE_CHANGED', 'The price changed while you were checking out. Nothing was charged.', { price }),
   conflict: (msg: string) => new AppError(409, 'CONFLICT', msg),
 };

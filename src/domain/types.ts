@@ -59,6 +59,11 @@ export interface Subscription {
   cancelAtPeriodEnd: boolean;
   /** True during the free-trial period: access is granted, nothing has been charged yet. */
   trial: boolean;
+  /**
+   * Launch-offer discount locked in at signup, in whole percent. It applies to the first paid charge only
+   * (the one at the end of the trial) and is cleared once that charge happens. 0 = none.
+   */
+  promoPercent: number;
 }
 
 export type SubscriptionState = 'none' | 'active' | 'ending' | 'expired';

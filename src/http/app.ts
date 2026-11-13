@@ -140,11 +140,14 @@ export function createApp(getContainer: () => Promise<Container>) {
   });
 
   // ---- Billing (mock payments) ----
-  app.get('/v1/plans', async (ctx) => ctx.json({ plans: ctx.get('c').billing.plans(), currency: config.currency }));
+  app.get('/v1/plans', async (ctx) => ctx.json({ ...ctx.get('c').billing.plans(), currency: config.currency }));
   app.post('/v1/checkout/subscription', async (ctx) => {
     const user = requireUser(ctx);
-    const { planId, card } = await parse(ctx, z.object({ planId: z.string(), card: cardInput }));
-    return ctx.json(await ctx.get('c').billing.subscribe(user, planId, card, idemKey(ctx)), 201);
+    const { planId, card, quotedPrice } = await parse(
+      ctx,
+      z.object({ planId: z.string(), card: cardInput, quotedPrice: z.number().int().nonnegative().optional() }),
+    );
+    return ctx.json(await ctx.get('c').billing.subscribe(user, planId, card, idemKey(ctx), quotedPrice), 201);
   });
   app.post('/v1/checkout/books/:key', async (ctx) => {
     const user = requireUser(ctx);

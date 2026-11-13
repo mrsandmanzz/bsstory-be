@@ -50,7 +50,8 @@ const STATEMENTS = [
     current_period_start TEXT NOT NULL,
     current_period_end TEXT NOT NULL,
     cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
-    trial INTEGER NOT NULL DEFAULT 0
+    trial INTEGER NOT NULL DEFAULT 0,
+    promo_percent INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE TABLE IF NOT EXISTS payments (
     id TEXT PRIMARY KEY,
@@ -93,6 +94,7 @@ export async function migrate(db: Db): Promise<void> {
     'ALTER TABLE subscriptions ADD COLUMN trial INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE books ADD COLUMN i18n TEXT',
     'ALTER TABLE book_pages ADD COLUMN i18n TEXT',
+    'ALTER TABLE subscriptions ADD COLUMN promo_percent INTEGER NOT NULL DEFAULT 0',
   ]) {
     try {
       await db.execute(sql);

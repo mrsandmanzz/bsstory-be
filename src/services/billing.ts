@@ -3,7 +3,8 @@ import { PLANS, TRIAL_DAYS, config } from '../config.js';
 import { isUniqueViolation } from '../db/client.js';
 import { decideAccess, subscriptionState } from '../domain/access.js';
 import { Errors } from '../domain/errors.js';
-import type { Payment, Subscription, User } from '../domain/types.js';
+import { activePromo, discountedPrice, type Promo } from '../domain/promo.js';
+import type { Payment, Plan, Subscription, User } from '../domain/types.js';
 import { charge, type CardInput } from '../payments/mockGateway.js';
 import type { billingRepo } from '../repositories/billing.js';
 import type { booksRepo } from '../repositories/books.js';
@@ -19,7 +20,17 @@ const DAY_MS = 86_400_000;
 const STALE_PENDING_MS = 2 * 60_000;
 const addDays = (d: Date, days: number) => new Date(d.getTime() + days * DAY_MS);
 
-export const billingService = (billing: ReturnType<typeof billingRepo>, books: ReturnType<typeof booksRepo>, clock: () => Date) => {
+export const billingService = (
+  billing: ReturnType<typeof billingRepo>,
+  books: ReturnType<typeof booksRepo>,
+  clock: () => Date,
+  offer: Promo | null = null,
+) => {
+  /** What a plan costs for its first paid payment right now: the launch-offer price while the offer runs. */
+  const priceNow = (plan: Plan) => {
+    const live = activePromo(offer, clock());
+    return live ? discountedPrice(plan.price, live.percent) : plan.price;
+  };
   /**
    * The user's subscription, renewing it first if it lapsed without being cancelled (mock auto-renewal,
    * card on file assumed). Every read path goes through here so access never depends on who called `/me` first.
@@ -39,13 +50,15 @@ export const billingService = (billing: ReturnType<typeof billingRepo>, books: R
       currentPeriodStart: start.toISOString(),
       currentPeriodEnd: addDays(start, plan.days).toISOString(),
       trial: false, // the first paid period begins: the trial is over
+      promoPercent: 0, // a locked launch-offer discount is spent by this charge
     };
     const payment: Payment = {
       id: crypto.randomUUID(),
       userId,
       kind: 'subscription',
       refId: plan.id,
-      amount: plan.price,
+      // The discount promised at signup (locked in `promoPercent`) applies to this first paid charge, even if the offer ended meanwhile.
+      amount: discountedPrice(plan.price, sub.promoPercent),
       currency: config.currency,
       status: 'succeeded',
       failureReason: null,
@@ -60,9 +73,16 @@ export const billingService = (billing: ReturnType<typeof billingRepo>, books: R
   async function me(user: User) {
     const sub = await currentSubscription(user.id);
     const purchases = await billing.purchasesOf(user.id);
+    const plan = sub ? (PLANS.find((p) => p.id === sub.planId) ?? null) : null;
     return {
       user,
-      subscription: sub && { ...sub, state: subscriptionState(sub, clock()), plan: PLANS.find((p) => p.id === sub.planId) ?? null },
+      subscription: sub && {
+        ...sub,
+        state: subscriptionState(sub, clock()),
+        plan,
+        /** What the next charge will be: the locked launch-offer price for a trial that started during the offer, else the plan price. */
+        nextAmount: plan ? discountedPrice(plan.price, sub.promoPercent) : null,
+      },
       purchasedBookIds: purchases.map((p) => p.bookId),
       /** A never-subscribed account gets the free trial; once any subscription row exists it is used up. */
       trialEligible: sub === null,
@@ -128,7 +148,12 @@ export const billingService = (billing: ReturnType<typeof billingRepo>, books: R
   }
 
   return {
-    plans: () => PLANS,
+    /** Plans with the launch-offer price (`promoPrice`) while the offer runs. `now` lets clients correct for a skewed clock. */
+    plans: () => ({
+      plans: PLANS.map((p) => ({ ...p, promoPrice: activePromo(offer, clock()) ? priceNow(p) : null })),
+      promo: activePromo(offer, clock()),
+      now: clock().toISOString(),
+    }),
     currentSubscription,
     me,
 
@@ -136,7 +161,11 @@ export const billingService = (billing: ReturnType<typeof billingRepo>, books: R
       return { payments: await billing.paymentsOf(user.id), purchases: await billing.purchasesOf(user.id) };
     },
 
-    async subscribe(user: User, planId: string, card: CardInput, key?: string) {
+    /**
+     * `quotedPrice` is the price the customer was shown. If the offer ended (or started) since, it no longer matches
+     * and we refuse BEFORE touching the card, so nobody is charged an amount they did not see.
+     */
+    async subscribe(user: User, planId: string, card: CardInput, key?: string, quotedPrice?: number) {
       const plan = PLANS.find((p) => p.id === planId);
       if (!plan) throw Errors.notFound('Plan');
 
@@ -149,7 +178,12 @@ export const billingService = (billing: ReturnType<typeof billingRepo>, books: R
       const existing = await billing.subscriptionOf(user.id);
       const trial = existing === null;
 
-      const payment = await reserve(user, 'subscription', plan.id, trial ? 0 : plan.price, key);
+      // One reading of the clock decides both the price and whether a discount gets locked in.
+      const live = activePromo(offer, clock());
+      const price = live ? discountedPrice(plan.price, live.percent) : plan.price;
+      if (quotedPrice !== undefined && quotedPrice !== price) throw Errors.priceChanged(price);
+
+      const payment = await reserve(user, 'subscription', plan.id, trial ? 0 : price, key);
       if (await isActive()) return abort(payment, 'Already subscribed', Errors.alreadySubscribed());
 
       const last4 = await collect(payment, card);
@@ -162,6 +196,8 @@ export const billingService = (billing: ReturnType<typeof billingRepo>, books: R
         currentPeriodEnd: addDays(start, trial ? TRIAL_DAYS : plan.days).toISOString(),
         cancelAtPeriodEnd: false,
         trial,
+        // Paying now already used the discount; a trial locks it in for the first charge at the end of the trial.
+        promoPercent: trial && live ? live.percent : 0,
       });
       return me(user);
     },
