@@ -16,7 +16,7 @@ npm run dev        # API on http://localhost:8787
 npm run check      # lint, format check, strict typecheck and all tests
 ```
 
-The local database is a SQLite file created and seeded on the first request (`data/`, git-ignored). Delete it to reset the demo data. Copy `.env.example` to `.env` to change settings.
+The local database is a SQLite file created and seeded on the first request (`data/`, git-ignored). Delete it to reset the demo data. Settings are read from environment variables (`.env.example` lists them all), for example `PORT=8899 npm run dev`. The app does not read a `.env` file by itself.
 
 Demo accounts (log in with the email only, this is a mock login): `parent@mainstory.test` (no subscription), `subscriber@mainstory.test` (subscribed), `admin@mainstory.test` (admin).
 
