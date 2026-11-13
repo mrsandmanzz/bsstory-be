@@ -122,7 +122,7 @@ Where revenue and simplicity pulled apart, the product chose parent trust and a 
 
 ### Architecture overview
 
-The web app talks only to the API, and the API enforces every rule about access and money. Inside the API, requests flow one way: routes, then services, then SQL. The pure rules sit to the side so they can be tested without a database.
+The backend is a Node.js API, as the brief asked (Node.js or Go): Node.js 22 with TypeScript in strict mode and the Hono framework. The web app talks only to the API, and the API enforces every rule about access and money. Inside the API, requests flow one way: routes, then services, then SQL. The pure rules sit to the side so they can be tested without a database.
 
 ![Architecture: web app, API layers, database](architecture-overview.svg)
 

@@ -18,7 +18,7 @@
 
   <!-- API container -->
   <rect x="24" y="164" width="712" height="224" rx="8" fill="none" stroke="#8a877e" stroke-width="1.25"/>
-  <text x="40" y="188" font-weight="600" fill="#1f1d2b">API: Hono, Vercel-ready (serverless entry point)</text>
+  <text x="40" y="188" font-weight="600" fill="#1f1d2b">API: Node.js 22, TypeScript, Hono (Vercel-ready)</text>
 
   <rect x="40" y="204" width="200" height="72" rx="8" fill="none" stroke="#8a877e" stroke-width="1.25"/>
   <text x="56" y="228" font-weight="600" fill="#1f1d2b">http/ routes</text>
