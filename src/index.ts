@@ -1,4 +1,4 @@
-import { type Hono } from 'hono';
+import { Hono } from 'hono';
 import { getContainer } from './container.js';
 import { type Env, createApp } from './http/app.js';
 
@@ -6,11 +6,11 @@ import { type Env, createApp } from './http/app.js';
  * Vercel's zero-config Hono entry: the default export is the app. Vercel turns it into a function; locally,
  * `src/dev.ts` serves the same app with @hono/node-server.
  *
- * Vercel only recognises an entry file that imports the `hono` package itself (its docs: "create a file that imports
- * the hono package" at src/index.ts and similar paths). Importing only our own modules is not enough: the deployment
- * then builds without a function and answers every route with Vercel's own 404. The explicit type below keeps that
- * import in place on purpose.
+ * Vercel only builds a function when this entry file really imports and uses the `hono` package. A type-only import
+ * is erased at compile time and does not count: the deployment then finishes in seconds without a function and answers
+ * every route with Vercel's own 404. So the entry creates a real Hono app and mounts ours on it.
  */
-const app: Hono<Env> = createApp(getContainer);
+const app = new Hono<Env>();
+app.route('/', createApp(getContainer));
 
 export default app;
