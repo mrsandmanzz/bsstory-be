@@ -29,17 +29,23 @@ export interface Book {
   coverTo: string;
   readingMinutes: number;
   pageCount: number;
+  /** Translated title and summary (English is the plain fields). */
+  i18n: BookTranslations;
+  /** Languages the whole book can be read in: English, plus any language where every page is translated. */
+  languages: Lang[];
   createdAt: string;
   updatedAt: string;
 }
 
 import type { PageActivity } from './activity.js';
+import type { BookTranslations, Lang, PageTranslations } from './i18n.js';
 
 export interface BookPage {
   position: number; // 1-based
   text: string;
   emoji: string;
   imageUrl: string | null;
+  i18n: PageTranslations;
   /** Stickers and an optional question. Delivered with the page, so it is gated exactly like the text. */
   activity: PageActivity | null;
 }

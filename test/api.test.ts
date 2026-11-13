@@ -456,3 +456,98 @@ describe('free trial', () => {
     expect(paid[0].amount).toBe(399_000);
   });
 });
+
+describe('translations (English and Indonesian)', () => {
+  const base = {
+    title: 'Tr',
+    author: 'A',
+    summary: 'S',
+    ageMin: 1,
+    ageMax: 3,
+    price: 0,
+    status: 'published',
+    previewPages: 1,
+    coverEmoji: '🦊',
+    coverFrom: '#FFAA00',
+    coverTo: '#FFEE99',
+    readingMinutes: 1,
+  };
+  const page = (text: string, id?: string) => ({ text, emoji: '🦊', ...(id ? { i18n: { id: { text: id } } } : {}) });
+  const create = async (body: unknown) => call('POST', '/v1/books', { token: await login('admin@mainstory.test'), body });
+
+  it('seeded stories are offered in English and Indonesian, with every page translated', async () => {
+    const list = await call('GET', '/v1/books');
+    expect(list.json.books.every((b: any) => b.languages.includes('en') && b.languages.includes('id'))).toBe(true);
+    const read = await call('GET', '/v1/books/moon-wants-a-nap/read');
+    expect(read.json.book.i18n.id.title).toBe('Bulan Mau Tidur');
+    expect(read.json.pages[0].i18n.id.text).toContain('Bulan menguap');
+    expect(read.json.pages[4].activity.question.i18n.id.prompt).toContain('Suara apa');
+    expect(read.json.pages[4].activity.question.choices[0].i18n.id.label).toBe('Syuuu…');
+    expect(read.json.pages[0].activity.stickers[0].i18n.id.sound).toBe('Kerlap-kerlip!');
+  });
+
+  it('only offers a language when the title and every page are translated', async () => {
+    const full = await create({
+      ...base,
+      i18n: { id: { title: 'Judul', summary: 'Ringkasan' } },
+      pages: [page('One', 'Satu'), page('Two', 'Dua')],
+    });
+    expect(full.status).toBe(201);
+    expect(full.json.book.pages[1].i18n.id.text).toBe('Dua');
+    const slug = full.json.book.slug;
+    expect((await call('GET', `/v1/books/${slug}`)).json.book.languages).toEqual(['en', 'id']);
+    const english = await create({ ...base, title: 'Only English', pages: [page('One'), page('Two')] });
+    expect((await call('GET', `/v1/books/${english.json.book.slug}`)).json.book.languages).toEqual(['en']);
+  });
+
+  it('rejects a half-translated book and points at the missing fields', async () => {
+    const missingPage = await create({
+      ...base,
+      i18n: { id: { title: 'Judul', summary: 'Ringkasan' } },
+      pages: [page('One', 'Satu'), page('Two')],
+    });
+    expect(missingPage.status).toBe(422);
+    expect(missingPage.json.error.details.map((d: any) => d.field)).toContain('pages.1.i18n.id.text');
+    const missingTitle = await create({ ...base, pages: [page('One', 'Satu')] });
+    expect(missingTitle.status).toBe(422);
+    expect(missingTitle.json.error.details.map((d: any) => d.field)).toContain('i18n.id.title');
+  });
+
+  it('rejects unknown language codes instead of silently dropping them', async () => {
+    const bad = await create({ ...base, i18n: { fr: { title: 'Titre', summary: 'Résumé' } }, pages: [page('One')] });
+    expect(bad.status).toBe(422);
+  });
+});
+
+describe('what to read next', () => {
+  const next = (slug: string, query = '', token?: string) => call('GET', `/v1/books/${slug}/next${query}`, { token });
+
+  it('suggests other books for the same age first, including locked ones for a guest', async () => {
+    const res = await next('moon-wants-a-nap');
+    expect(res.status).toBe(200);
+    expect(res.json.books).toHaveLength(3);
+    expect(res.json.books.every((b: any) => b.slug !== 'moon-wants-a-nap')).toBe(true);
+    // Moon is for ages 0-3: books for 2-4 come before books that only start at 3 or later.
+    expect(res.json.books[0].ageMin).toBeLessThanOrEqual(3);
+    expect(res.json.books.some((b: any) => b.access.canRead === false)).toBe(true); // locked suggestions are kept
+  });
+
+  it('never suggests drafts, and skips books the client says were finished', async () => {
+    const all = await next('moon-wants-a-nap', '?limit=6');
+    expect(all.json.books.some((b: any) => b.slug.includes('draft'))).toBe(false);
+    const skipped = await next('moon-wants-a-nap', `?limit=6&exclude=${all.json.books[0].slug}`);
+    expect(skipped.json.books.some((b: any) => b.slug === all.json.books[0].slug)).toBe(false);
+  });
+
+  it('marks suggestions the user can already read', async () => {
+    const token = await login('subscriber@mainstory.test');
+    const res = await next('moon-wants-a-nap', '', token);
+    expect(res.json.books.every((b: any) => b.access.canRead === true)).toBe(true);
+  });
+
+  it('validates its query and hides unavailable books', async () => {
+    expect((await next('moon-wants-a-nap', '?limit=99')).status).toBe(422);
+    expect((await next('moon-wants-a-nap', '?exclude=Bad Slug!')).status).toBe(422);
+    expect((await next('the-brave-mango-draft')).status).toBe(404);
+  });
+});

@@ -25,6 +25,7 @@ const STATEMENTS = [
     preview_pages INTEGER NOT NULL DEFAULT 2 CHECK (preview_pages >= 0),
     cover_emoji TEXT NOT NULL,
     cover_url TEXT,
+    i18n TEXT,
     cover_from TEXT NOT NULL,
     cover_to TEXT NOT NULL,
     reading_minutes INTEGER NOT NULL DEFAULT 3,
@@ -38,6 +39,7 @@ const STATEMENTS = [
     emoji TEXT NOT NULL DEFAULT '✨',
     image_url TEXT,
     activity TEXT,
+    i18n TEXT,
     PRIMARY KEY (book_id, position)
   )`,
   // One row per user: renewals mutate it, history lives in payments.
@@ -89,6 +91,8 @@ export async function migrate(db: Db): Promise<void> {
     'ALTER TABLE book_pages ADD COLUMN image_url TEXT',
     'ALTER TABLE book_pages ADD COLUMN activity TEXT',
     'ALTER TABLE subscriptions ADD COLUMN trial INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE books ADD COLUMN i18n TEXT',
+    'ALTER TABLE book_pages ADD COLUMN i18n TEXT',
   ]) {
     try {
       await db.execute(sql);

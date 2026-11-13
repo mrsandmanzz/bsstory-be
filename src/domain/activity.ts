@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { translations } from './i18n.js';
 
 /**
  * Interactive layer of a page. Two kinds of play, both tuned for 2-5 year olds:
@@ -16,18 +17,22 @@ const sticker = z.object({
   /** The sound word shown in a speech bubble, e.g. "Quack!". */
   sound: z.string().trim().max(24).default(''),
   reaction: z.enum(REACTIONS).default('hop'),
+  /** Sound words differ by language: "Quack!" is "Kwek!" in Indonesian. */
+  i18n: translations(z.object({ sound: z.string().trim().max(24) })),
 });
 
 const choice = z.object({
   emoji: z.string().trim().min(1).max(8),
   label: z.string().trim().min(1).max(24),
   correct: z.boolean(),
+  i18n: translations(z.object({ label: z.string().trim().min(1).max(24) })),
 });
 
 const question = z
   .object({
     prompt: z.string().trim().min(1).max(120),
     choices: z.array(choice).min(2).max(4),
+    i18n: translations(z.object({ prompt: z.string().trim().min(1).max(120) })),
   })
   .refine((q) => q.choices.filter((c) => c.correct).length === 1, { path: ['choices'], message: 'Mark exactly one correct answer' });
 

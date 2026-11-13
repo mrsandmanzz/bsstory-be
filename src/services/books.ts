@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { activitySchema } from '../domain/activity.js';
 import { decideAccess, type AccessDecision } from '../domain/access.js';
 import { Errors } from '../domain/errors.js';
+import { TRANSLATION_LANGS, bookTranslations, pageTranslations } from '../domain/i18n.js';
+import { rankNext } from '../domain/recommend.js';
 import { slugify } from '../domain/slug.js';
 import type { Book, BookPage, Subscription, User } from '../domain/types.js';
 import type { billingRepo } from '../repositories/billing.js';
@@ -33,6 +35,7 @@ export const bookInput = z
     coverFrom: hex,
     coverTo: hex,
     readingMinutes: z.number().int().min(1).max(60),
+    i18n: bookTranslations,
     pages: z
       .array(
         z.object({
@@ -40,13 +43,33 @@ export const bookInput = z
           emoji: z.string().trim().min(1).max(8),
           imageUrl: imageRef,
           activity: activitySchema,
+          i18n: pageTranslations,
         }),
       )
       .max(40),
   })
   .refine((b) => b.ageMin <= b.ageMax, { path: ['ageMax'], message: 'Max age must be ≥ min age' })
   .refine((b) => b.status !== 'published' || b.pages.length > 0, { path: ['pages'], message: 'Add at least one page before publishing' })
-  .refine((b) => b.previewPages <= b.pages.length, { path: ['previewPages'], message: 'Preview pages cannot exceed total pages' });
+  .refine((b) => b.previewPages <= b.pages.length, { path: ['previewPages'], message: 'Preview pages cannot exceed total pages' })
+  // A language is all-or-nothing: either the title, summary and EVERY page are translated, or none are. This is what
+  // lets the app offer a language without ever showing a half-translated book.
+  .superRefine((b, ctx) => {
+    for (const lang of TRANSLATION_LANGS) {
+      const titled = Boolean(b.i18n[lang]);
+      const translatedPages = b.pages.filter((p) => p.i18n[lang]?.text).length;
+      if (!titled && translatedPages === 0) continue;
+      if (!titled)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['i18n', lang, 'title'],
+          message: `Add the ${lang.toUpperCase()} title and summary, or remove the page translations`,
+        });
+      b.pages.forEach((p, i) => {
+        if (!p.i18n[lang]?.text)
+          ctx.addIssue({ code: 'custom', path: ['pages', i, 'i18n', lang, 'text'], message: `This page needs ${lang.toUpperCase()} text` });
+      });
+    }
+  });
 
 export type BookInput = z.infer<typeof bookInput>;
 export type BookView = Book & { access: AccessDecision };
@@ -99,6 +122,22 @@ export const booksService = (
 
     get: getVisible,
 
+    /**
+     * Suggestions for what to read after `key`. Locked books are included on purpose: the app shows them with a lock
+     * and opens the payment pop-up on tap. `exclude` lets the client skip books this reader already finished.
+     */
+    async next(key: string, user: User | null, opts: { limit: number; exclude: readonly string[] }): Promise<BookView[]> {
+      const current = await getVisible(key, user);
+      const ctx = await context(user);
+      const skip = new Set(opts.exclude);
+      const all = await books.list({ includeAll: isStaff(user), ids: [...ctx.owned] });
+      const candidates = all
+        .filter((b) => b.id !== current.id && !skip.has(b.slug))
+        .map((b) => view(b, user, ctx))
+        .filter((b) => b.access.reason !== 'unavailable' && b.status === 'published');
+      return rankNext(current, candidates).slice(0, opts.limit);
+    },
+
     /** The content gate. Full text is only ever returned when decideAccess says canRead. */
     async read(key: string, user: User | null): Promise<{ book: BookView; pages: BookPage[]; locked: boolean; totalPages: number }> {
       const book = await getVisible(key, user);
@@ -138,7 +177,7 @@ export const booksService = (
       if (!existing) throw Errors.notFound('Book');
       if (await books.hasPurchases(existing.id)) {
         const pages = await books.pages(existing.id);
-        const { pageCount: _pc, createdAt: _c, updatedAt: _u, ...rest } = existing;
+        const { pageCount: _pc, languages: _l, createdAt: _c, updatedAt: _u, ...rest } = existing;
         await books.save({ ...rest, status: 'archived' }, pages, clock().toISOString(), false);
         return { archived: true };
       }

@@ -19,11 +19,22 @@ export async function seedIfEmpty(
   if ((await books.count()) > 0) return;
   const now = clock().toISOString();
   for (const input of SEED_BOOKS) {
-    const { pages, ...fields } = input;
+    const { pages, titleId, summaryId, ...fields } = input;
     const s = slugify(input.title);
     await books.save(
-      { id: crypto.randomUUID(), slug: s, coverUrl: `/stories/${s}/cover.jpg`, ...fields },
-      pages.map((p, i) => ({ ...p, imageUrl: `/stories/${s}/p${i + 1}.jpg`, activity: p.activity ?? null })),
+      {
+        id: crypto.randomUUID(),
+        slug: s,
+        coverUrl: `/stories/${s}/cover.jpg`,
+        i18n: { id: { title: titleId, summary: summaryId } },
+        ...fields,
+      },
+      pages.map(({ id: textId, ...p }, i) => ({
+        ...p,
+        imageUrl: `/stories/${s}/p${i + 1}.jpg`,
+        i18n: { id: { text: textId } },
+        activity: p.activity ?? null,
+      })),
       now,
       true,
     );

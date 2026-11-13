@@ -28,6 +28,22 @@ function validate<T extends ZodTypeAny>(schema: T, input: unknown): z.infer<T> {
   return r.data;
 }
 
+const nextQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(6).default(3),
+  /** Comma-separated slugs the reader already finished (kept on their device). */
+  exclude: z
+    .string()
+    .max(600)
+    .default('')
+    .transform((v) =>
+      v
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.string().regex(/^[a-z0-9-]{1,80}$/, 'Invalid slug')).max(30)),
+});
+
 const listQuery = z.object({
   search: z.string().trim().max(80).optional(),
   age: z.coerce.number().int().min(0).max(12).optional(),
@@ -95,6 +111,11 @@ export function createApp(getContainer: () => Promise<Container>) {
   app.get('/v1/books', async (ctx) => {
     const query = validate(listQuery, ctx.req.query());
     return ctx.json({ books: await ctx.get('c').books.list(ctx.get('user'), query) });
+  });
+  /** What to read next, for the end-of-book screen. Includes locked books; the client opens payment when one is tapped. */
+  app.get('/v1/books/:key/next', async (ctx) => {
+    const { limit, exclude } = validate(nextQuery, ctx.req.query());
+    return ctx.json({ books: await ctx.get('c').books.next(ctx.req.param('key'), ctx.get('user'), { limit, exclude }) });
   });
   app.get('/v1/books/:key', async (ctx) => ctx.json({ book: await ctx.get('c').books.get(ctx.req.param('key'), ctx.get('user')) }));
   /** The content gate: returns full pages only if the caller is entitled, else the preview. */
