@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 520" width="760" height="520" font-family="Helvetica, Arial, sans-serif" font-size="13" role="img" aria-label="Rules live in services and a pure domain, not in the UI or SQL">
+  <defs>
+    <marker id="arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#8a877e"/>
+    </marker>
+  </defs>
+  <rect width="760" height="520" fill="#ffffff"/>
+  <text x="24" y="34" font-size="15" font-weight="600" fill="#1f1d2b">Rules live in services and a pure domain, not in the UI or SQL</text>
+
+  <!-- Web app -->
+  <rect x="24" y="56" width="712" height="72" rx="8" fill="none" stroke="#8a877e" stroke-width="1.25"/>
+  <text x="40" y="80" font-weight="600" fill="#1f1d2b">Web app: React, Vite, Tailwind</text>
+  <text x="40" y="96" font-size="11.5" fill="#5f5c70">Library, page-turn reader, checkout behind a parental gate, admin panel.</text>
+  <text x="40" y="112" font-size="11.5" fill="#5f5c70">Reader profiles and progress stay on the device, never on the server.</text>
+
+  <path d="M380 128V164" fill="none" stroke="#8a877e" stroke-width="1.25" marker-end="url(#arch-arrow)"/>
+  <text x="392" y="150" font-size="11.5" fill="#5f5c70">JSON over HTTPS</text>
+
+  <!-- API container -->
+  <rect x="24" y="164" width="712" height="224" rx="8" fill="none" stroke="#8a877e" stroke-width="1.25"/>
+  <text x="40" y="188" font-weight="600" fill="#1f1d2b">API: Hono, Vercel-ready (serverless entry point)</text>
+
+  <rect x="40" y="204" width="200" height="72" rx="8" fill="none" stroke="#8a877e" stroke-width="1.25"/>
+  <text x="56" y="228" font-weight="600" fill="#1f1d2b">http/ routes</text>
+  <text x="56" y="244" font-size="11.5" fill="#5f5c70">validation and error codes</text>
+  <text x="56" y="260" font-size="11.5" fill="#5f5c70">bearer token to user</text>
+
+  <rect x="280" y="204" width="200" height="72" rx="8" fill="#5b4bdb" fill-opacity="0.12" stroke="#5b4bdb" stroke-width="2"/>
+  <text x="296" y="228" font-weight="600" fill="#1f1d2b">services/ rules</text>
+  <text x="296" y="244" font-size="11.5" fill="#5f5c70">billing, books, auth</text>
+  <text x="296" y="260" font-size="11.5" fill="#5f5c70">trial, renewal, offer</text>
+
+  <rect x="520" y="204" width="200" height="72" rx="8" fill="none" stroke="#8a877e" stroke-width="1.25"/>
+  <text x="536" y="228" font-weight="600" fill="#1f1d2b">repositories/ SQL</text>
+  <text x="536" y="244" font-size="11.5" fill="#5f5c70">one file per aggregate</text>
+  <text x="536" y="260" font-size="11.5" fill="#5f5c70">all queries parameterised</text>
+
+  <g fill="none" stroke="#8a877e" stroke-width="1.25">
+    <path d="M240 240H280" marker-end="url(#arch-arrow)"/>
+    <path d="M480 240H520" marker-end="url(#arch-arrow)"/>
+    <path d="M300 276V300" marker-end="url(#arch-arrow)"/>
+    <path d="M440 276V300" marker-end="url(#arch-arrow)"/>
+  </g>
+
+  <rect x="40" y="300" width="300" height="72" rx="8" fill="none" stroke="#8a877e" stroke-width="1.25"/>
+  <text x="56" y="324" font-weight="600" fill="#1f1d2b">domain/ pure rules</text>
+  <text x="56" y="340" font-size="11.5" fill="#5f5c70">access policy, offer pricing</text>
+  <text x="56" y="356" font-size="11.5" fill="#5f5c70">translations, ranking: no I/O</text>
+
+  <rect x="380" y="300" width="220" height="72" rx="8" fill="none" stroke="#8a877e" stroke-width="1.25"/>
+  <text x="396" y="324" font-weight="600" fill="#1f1d2b">payments/ mock gateway</text>
+  <text x="396" y="340" font-size="11.5" fill="#5f5c70">one charge() function</text>
+  <text x="396" y="356" font-size="11.5" fill="#5f5c70">swap for a real provider</text>
+
+  <!-- SQL -->
+  <path d="M620 276V424" fill="none" stroke="#8a877e" stroke-width="1.25" marker-end="url(#arch-arrow)"/>
+  <text x="632" y="412" font-size="11.5" fill="#5f5c70">SQL queries</text>
+
+  <!-- Database -->
+  <rect x="24" y="424" width="712" height="72" rx="8" fill="none" stroke="#8a877e" stroke-width="1.25"/>
+  <text x="40" y="448" font-weight="600" fill="#1f1d2b">Database: libSQL (SQLite file locally, Turso in production)</text>
+  <text x="40" y="464" font-size="11.5" fill="#5f5c70">users, books, book_pages, subscriptions, payments, purchases</text>
+  <text x="40" y="480" font-size="11.5" fill="#5f5c70">UNIQUE keys and partial indexes are the last line of defence for the money rules.</text>
+</svg>
