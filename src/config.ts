@@ -20,8 +20,8 @@ export const config = {
   jwtSecret: setting('JWT_SECRET', 'dev-only-secret-change-me'),
   currency: process.env.CURRENCY ?? 'IDR',
   allowedOrigins: (process.env.ALLOWED_ORIGINS ?? '*').split(',').map((s) => s.trim()),
-  /** Demo data is on by default in development; production must opt in with AUTO_SEED=true. */
-  autoSeed: process.env.AUTO_SEED ? process.env.AUTO_SEED === 'true' : !isProduction,
+  /** Demo data is on by default in development; production must opt in with AUTO_SEED=true (any letter case). */
+  autoSeed: process.env.AUTO_SEED ? process.env.AUTO_SEED.trim().toLowerCase() === 'true' : !isProduction,
   /** Emails that are granted the admin role on first login (mock auth). */
   adminEmails: setting('ADMIN_EMAILS', 'admin@mainstory.test')
     .split(',')
