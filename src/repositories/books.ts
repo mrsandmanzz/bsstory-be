@@ -5,7 +5,7 @@ import type { Book, BookPage, BookStatus } from '../domain/types.js';
 
 /** One subselect per translation language: how many of the book's pages have text in it. Constants only, never user input. */
 const TRANSLATED_PAGE_COUNTS = TRANSLATION_LANGS.map(
-  (l) => `(SELECT COUNT(*) FROM book_pages p WHERE p.book_id = b.id AND json_extract(p.i18n, '$.${l}.text') IS NOT NULL) AS tr_${l}`,
+  (l) => `(SELECT COUNT(*) FROM book_pages p WHERE p.book_id = b.id AND (p.i18n::jsonb -> '${l}' ->> 'text') IS NOT NULL) AS tr_${l}`,
 ).join(', ');
 
 const BOOK_SELECT = `SELECT b.*, (SELECT COUNT(*) FROM book_pages p WHERE p.book_id = b.id) AS page_count, ${TRANSLATED_PAGE_COUNTS} FROM books b`;

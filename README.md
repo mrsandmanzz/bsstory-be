@@ -6,7 +6,7 @@ Web app: [bookstory](https://github.com/sandmanzz/bookstory)
 
 ## Stack
 
-Node.js 22, [Hono](https://hono.dev), [libSQL](https://github.com/tursodatabase/libsql) (a SQLite file locally, Turso in production), zod for validation, jose for the JWT, TypeScript in strict mode, Vitest.
+Node.js 22, [Hono](https://hono.dev), PostgreSQL ([Supabase](https://supabase.com) in production, [PGlite](https://pglite.dev), PostgreSQL running inside Node, locally and in tests), zod for validation, jose for the JWT, TypeScript in strict mode, Vitest.
 
 ## Run locally
 
@@ -16,7 +16,7 @@ npm run dev        # API on http://localhost:8787
 npm run check      # lint, format check, strict typecheck and all tests
 ```
 
-The local database is a SQLite file created and seeded on the first request (`data/`, git-ignored). Delete it to reset the demo data. Settings are read from environment variables (`.env.example` lists them all), for example `PORT=8899 npm run dev`. The app does not read a `.env` file by itself.
+There is nothing to install for the database: locally it is PostgreSQL running inside the Node process (PGlite), created and seeded on the first request in `data/dev` (git-ignored). Delete that folder to reset the demo data. Settings are read from environment variables (`.env.example` lists them all), for example `PORT=8899 npm run dev`. The app does not read a `.env` file by itself.
 
 Demo accounts (log in with the email only, this is a mock login): `parent@mainstory.test` (no subscription), `subscriber@mainstory.test` (subscribed), `admin@mainstory.test` (admin).
 
@@ -52,22 +52,25 @@ All responses are JSON. Errors look like `{ "error": { "code", "message", "detai
 
 ## Settings
 
-| Variable                                        | Notes                                                                       |
-| ----------------------------------------------- | --------------------------------------------------------------------------- |
-| `DATABASE_URL`, `DATABASE_AUTH_TOKEN`           | `libsql://...` and its token for Turso. Required in production.             |
-| `JWT_SECRET`, `ADMIN_EMAILS`                    | Required in production: the API refuses to start without them.              |
-| `ALLOWED_ORIGINS`                               | Comma-separated web origins for CORS.                                       |
-| `AUTO_SEED`                                     | `true` seeds the demo data into an empty database.                          |
-| `PROMO_PERCENT`, `PROMO_ENDS_AT`, `PROMO_LABEL` | The launch offer. There is none in production unless the first two are set. |
+| Variable                                        | Notes                                                                        |
+| ----------------------------------------------- | ---------------------------------------------------------------------------- |
+| `DATABASE_URL`                                  | The Supabase connection string (`postgresql://...`). Required in production. |
+| `JWT_SECRET`, `ADMIN_EMAILS`                    | Required in production: the API refuses to start without them.               |
+| `ALLOWED_ORIGINS`                               | Comma-separated web origins for CORS.                                        |
+| `AUTO_SEED`                                     | `true` seeds the demo data into an empty database.                           |
+| `PROMO_PERCENT`, `PROMO_ENDS_AT`, `PROMO_LABEL` | The launch offer. There is none in production unless the first two are set.  |
 
-## Deploy on Vercel
+## Deploy on Vercel with Supabase
 
-1. Create a Turso database and copy its URL and token.
-2. Import this repository in Vercel. The entry point is `src/index.ts` (`export default app`), so no build command is needed.
-3. Set the variables above, then deploy.
-4. Check it: `npm run smoke -- https://<your-api>` (read-only), and once with `--write` to prove the database accepts writes.
+1. In Supabase, create a project and set a database password.
+2. In the project's connection settings, copy the **Transaction pooler** connection string (port 6543). Serverless functions open many short connections, and the pooler is what Supabase provides for that. If the password has special characters, URL-encode them.
+3. Import this repository in Vercel. The entry point is `src/index.ts` (`export default app`), so no build command is needed.
+4. In Vercel, set `DATABASE_URL` to that string, plus `JWT_SECRET`, `ADMIN_EMAILS` and `AUTO_SEED=true`, then deploy. Keep the connection string out of git and out of chat.
+5. Check it: `npm run smoke -- https://<your-api>` (read-only), and once with `--write` to prove the database accepts writes.
 
-It runs locally in production mode and passes the smoke test there, but it has **not been deployed or verified on Vercel or Turso yet**.
+The first request creates the tables and seeds the demo data, so it can take a few seconds. The schema script also turns on row level security for every table, which closes Supabase's public REST API to them: only this server's own connection can read or write.
+
+The `postgres://` path is tested against a PostgreSQL server speaking the real wire protocol (`test/postgres-driver.test.ts`), but this API has **not been deployed or verified on Vercel and Supabase yet**.
 
 ## Documentation
 

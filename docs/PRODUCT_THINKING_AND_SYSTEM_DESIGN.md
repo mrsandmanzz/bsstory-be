@@ -43,7 +43,7 @@ Parents pay and children read, so the product is playful and chunky for the chil
 
 ### Edge cases handled
 
-Access, payment and launch-offer rules are enforced on the server and covered by 66 automated API tests. Each case below says what happens.
+Access, payment and launch-offer rules are enforced on the server and covered by 72 automated API tests. Each case below says what happens.
 
 **Access rules, evaluated in this order**
 
@@ -57,11 +57,12 @@ Access, payment and launch-offer rules are enforced on the server and covered by
 
 #### Content and access
 
-| Case                          | What happens                                                                                     |
-| ----------------------------- | ------------------------------------------------------------------------------------------------ |
-| A locked user requests a book | The server sends only the preview pages. Locked text, stickers and answer keys are never sent.   |
-| A sold book is deleted        | It is archived instead, so buyers keep it.                                                       |
-| A user's role changes         | The role is read from the database on every request. Admin endpoints answer 403 to normal users. |
+| Case                                | What happens                                                                                                                            |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| A locked user requests a book       | The server sends only the preview pages. Locked text, stickers and answer keys are never sent.                                          |
+| A sold book is deleted              | It is archived instead, so buyers keep it.                                                                                              |
+| A user's role changes               | The role is read from the database on every request. Admin endpoints answer 403 to normal users.                                        |
+| Someone calls the database directly | Row level security is on for every table, so the database's public API cannot read or write them. Only the server's own connection can. |
 
 #### Payments
 
@@ -110,13 +111,13 @@ Where revenue and simplicity pulled apart, the product chose parent trust and a 
 
 #### Engineering trade-offs
 
-| Decision                                              | Instead of                          | Gain                                                                                 | Cost                                                     |
-| ----------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| Content is gated on the server, and drafts answer 404 | Hiding content in the UI only       | Locked text never reaches the browser, and a draft's existence is not leaked         | Every read goes through the API                          |
-| Email-only mock login                                 | Passwords or one-time codes         | Matches the brief, and auth sits behind one service that a real provider can replace | Anyone who knows the admin email is admin, so demo only  |
-| SQLite (libSQL) with plain SQL, no ORM                | Postgres with an ORM and migrations | No setup locally, and Turso in production                                            | No migration runner, only an idempotent schema bootstrap |
-| Renewal runs when the subscription is read            | A scheduler or cron job             | Simple, and correct under concurrent requests                                        | A real provider's webhooks are needed in production      |
-| A mock gateway behind one function                    | Integrating a provider now          | Fast to build and test, and swappable without touching the rules                     | No real recurring billing, refunds or webhooks yet       |
+| Decision                                              | Instead of                    | Gain                                                                                                     | Cost                                                          |
+| ----------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Content is gated on the server, and drafts answer 404 | Hiding content in the UI only | Locked text never reaches the browser, and a draft's existence is not leaked                             | Every read goes through the API                               |
+| Email-only mock login                                 | Passwords or one-time codes   | Matches the brief, and auth sits behind one service that a real provider can replace                     | Anyone who knows the admin email is admin, so demo only       |
+| PostgreSQL on Supabase with plain SQL, no ORM         | An ORM and a migration tool   | Real PostgreSQL everywhere: PGlite (PostgreSQL inside Node) locally and in tests, Supabase in production | No migration tool, only a schema script that is safe to rerun |
+| Renewal runs when the subscription is read            | A scheduler or cron job       | Simple, and correct under concurrent requests                                                            | A real provider's webhooks are needed in production           |
+| A mock gateway behind one function                    | Integrating a provider now    | Fast to build and test, and swappable without touching the rules                                         | No real recurring billing, refunds or webhooks yet            |
 
 ## System design
 

@@ -6,7 +6,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 /**
  * Settings that are dangerous to default in production fail fast instead: a forgotten JWT_SECRET lets anyone
  * forge admin tokens, a forgotten ADMIN_EMAILS leaves the public demo admin account open, and a missing
- * DATABASE_URL would point a read-only serverless filesystem at a SQLite file.
+ * DATABASE_URL would leave a read-only serverless filesystem to hold the data.
  */
 function setting(name: string, devDefault: string): string {
   const value = process.env[name];
@@ -16,8 +16,7 @@ function setting(name: string, devDefault: string): string {
 }
 
 export const config = {
-  databaseUrl: setting('DATABASE_URL', 'file:./data/local.db'),
-  databaseAuthToken: process.env.DATABASE_AUTH_TOKEN || undefined,
+  databaseUrl: setting('DATABASE_URL', 'pglite:./data/dev'),
   jwtSecret: setting('JWT_SECRET', 'dev-only-secret-change-me'),
   currency: process.env.CURRENCY ?? 'IDR',
   allowedOrigins: (process.env.ALLOWED_ORIGINS ?? '*').split(',').map((s) => s.trim()),

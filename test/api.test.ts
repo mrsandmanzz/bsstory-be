@@ -14,7 +14,7 @@ let app: ReturnType<typeof createApp>;
 async function setup() {
   now = new Date('2026-01-01T00:00:00Z');
   // No launch offer by default, so every price assertion below is about the regular prices.
-  const c = buildContainer(await createDb('file::memory:'), () => now, null);
+  const c = buildContainer(await createDb('pglite:memory'), () => now, null);
   await c.bootstrap();
   app = createApp(async () => c);
 }
@@ -557,7 +557,7 @@ describe('launch offer', () => {
   const offer = { percent: 30, endsAt: '2026-01-31T00:00:00.000Z', label: 'Launch offer' };
   beforeEach(async () => {
     now = new Date('2026-01-01T00:00:00Z');
-    const c = buildContainer(await createDb('file::memory:'), () => now, offer);
+    const c = buildContainer(await createDb('pglite:memory'), () => now, offer);
     await c.bootstrap();
     app = createApp(async () => c);
   });

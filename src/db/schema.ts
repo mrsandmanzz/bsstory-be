@@ -84,22 +84,16 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS ix_books_status ON books(status)`,
 ];
 
+const TABLES = ['users', 'books', 'book_pages', 'subscriptions', 'payments', 'purchases'];
+
 export async function migrate(db: Db): Promise<void> {
-  await db.batch(STATEMENTS, 'write');
-  // Additive upgrades for databases created before these columns existed.
-  for (const sql of [
-    'ALTER TABLE books ADD COLUMN cover_url TEXT',
-    'ALTER TABLE book_pages ADD COLUMN image_url TEXT',
-    'ALTER TABLE book_pages ADD COLUMN activity TEXT',
-    'ALTER TABLE subscriptions ADD COLUMN trial INTEGER NOT NULL DEFAULT 0',
-    'ALTER TABLE books ADD COLUMN i18n TEXT',
-    'ALTER TABLE book_pages ADD COLUMN i18n TEXT',
-    'ALTER TABLE subscriptions ADD COLUMN promo_percent INTEGER NOT NULL DEFAULT 0',
-  ]) {
-    try {
-      await db.execute(sql);
-    } catch {
-      /* column already exists */
-    }
-  }
+  await db.transaction(async (tx) => {
+    // Two cold starts migrating at once would collide inside the catalog; the lock makes the second one wait its turn.
+    await tx.execute('SELECT pg_advisory_xact_lock(727274)');
+    for (const sql of STATEMENTS) await tx.execute(sql);
+    // Supabase exposes tables through its REST API. Row level security with no policies shuts that door, so only our
+    // own server-side connection (which bypasses it) can read or write. A later column goes here as
+    // `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...`.
+    for (const t of TABLES) await tx.execute(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY`);
+  });
 }

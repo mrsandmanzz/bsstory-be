@@ -37,8 +37,6 @@ const mapPurchase = (r: Record<string, unknown>): Purchase => ({
 
 const PAYMENT_INSERT = `INSERT INTO payments (id,user_id,kind,ref_id,amount,currency,status,failure_reason,idempotency_key,last4,created_at)
                         VALUES (?,?,?,?,?,?,?,?,?,?,?)`;
-const PAYMENT_INSERT_SELECT = `INSERT INTO payments (id,user_id,kind,ref_id,amount,currency,status,failure_reason,idempotency_key,last4,created_at)
-                               SELECT ?,?,?,?,?,?,?,?,?,?,?`;
 const paymentArgs = (p: Payment) => [
   p.id,
   p.userId,
@@ -130,23 +128,21 @@ export const billingRepo = (db: Db) => ({
   },
   /**
    * Renew exactly once per lapsed period. The UPDATE only matches while the period end is still the value the
-   * caller saw (compare-and-set), and the payment row is inserted only if that UPDATE changed a row, all in one
-   * atomic batch. Concurrent requests therefore cannot both renew or both record a charge.
+   * caller saw (compare-and-set). A concurrent caller's UPDATE waits for the first to commit, re-checks its WHERE,
+   * matches nothing and loses. The payment row is inserted in the same transaction, and only by the winner.
    * Returns whether this caller won.
    */
   async renewSubscription(payment: Payment, renewed: Subscription, expectedPeriodEnd: string): Promise<boolean> {
-    const [update] = await db.batch(
-      [
-        {
-          sql: `UPDATE subscriptions SET current_period_start = ?, current_period_end = ?, trial = 0, promo_percent = 0
-                WHERE user_id = ? AND current_period_end = ? AND cancel_at_period_end = 0`,
-          args: [renewed.currentPeriodStart, renewed.currentPeriodEnd, renewed.userId, expectedPeriodEnd],
-        },
-        { sql: `${PAYMENT_INSERT_SELECT} WHERE changes() > 0`, args: paymentArgs(payment) },
-      ],
-      'write',
-    );
-    return (update?.rowsAffected ?? 0) > 0;
+    return db.transaction(async (tx) => {
+      const update = await tx.execute({
+        sql: `UPDATE subscriptions SET current_period_start = ?, current_period_end = ?, trial = 0, promo_percent = 0
+              WHERE user_id = ? AND current_period_end = ? AND cancel_at_period_end = 0`,
+        args: [renewed.currentPeriodStart, renewed.currentPeriodEnd, renewed.userId, expectedPeriodEnd],
+      });
+      if (update.rowsAffected === 0) return false;
+      await tx.execute({ sql: PAYMENT_INSERT, args: paymentArgs(payment) });
+      return true;
+    });
   },
   async setCancelAtPeriodEnd(userId: string, value: boolean): Promise<void> {
     await db.execute({ sql: 'UPDATE subscriptions SET cancel_at_period_end = ? WHERE user_id = ?', args: [value ? 1 : 0, userId] });
