@@ -5,8 +5,10 @@ import { config } from '../config.js';
  * The database as the rest of the app sees it: plain SQL with `?` placeholders, rows as objects, and atomic
  * multi-statement writes. Two engines sit behind it, both real PostgreSQL:
  *
- * - `postgres://...` (Supabase in production) through the `postgres` driver, which is pure JavaScript, so a
- *   serverless function never has to load a native module;
+ * - `postgres://...` (Supabase in production) through node-postgres (`pg`), which is pure JavaScript, so a serverless
+ *   function never has to load a native module. It sends one query at a time per connection, which matters: the
+ *   `postgres` package pipelines queries, and Supabase documents that pipelining through its pooler can hang or
+ *   return mismatched rows;
  * - `pglite:` (local development and tests), PostgreSQL running inside the Node process: `pglite:memory` keeps
  *   nothing, `pglite:./data/dev` keeps its files in that folder. Nothing to install and no server to start.
  *
@@ -102,31 +104,62 @@ async function pgliteDb(url: string): Promise<Db> {
 }
 
 async function postgresDb(url: string): Promise<Db> {
-  const { default: postgres } = await import('postgres');
+  const { default: pg } = await import('pg');
   const local = /@(localhost|127\.0\.0\.1)(:|\/)/.test(url);
-  const sql = postgres(url, {
-    // Supabase's pooler runs in transaction mode, which cannot keep prepared statements between queries.
-    prepare: false,
-    ssl: local ? false : 'require',
-    // A few connections per serverless instance: the pooler is what fans many instances into the database.
-    max: 3,
-    idle_timeout: 20,
-    connect_timeout: 10,
-    // The idempotent schema script prints a harmless "already exists, skipping" notice for every table; keep logs clean.
-    onnotice: () => {},
+  const pool = new pg.Pool({
+    connectionString: withoutSslMode(url),
+    // Encrypt like `sslmode=require` (the pooler's certificate is not in Node's trust store, so it is not verified).
+    ssl: local ? false : { rejectUnauthorized: false },
+    // Supabase advises a tiny pool per serverless instance: the shared pooler is what fans many instances into the
+    // database. Two (not one) so a transaction waiting on a second query can never deadlock against itself.
+    max: 2,
+    idleTimeoutMillis: 20_000,
+    connectionTimeoutMillis: 10_000,
   });
-  type Unsafe = { unsafe: (query: string, params?: never[]) => Promise<unknown[] & { count: number }> };
+  // An idle connection the server drops must not take the whole function down.
+  pool.on('error', (e) => console.error('database pool error:', e.message));
+
+  type Queryable = { query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number | null }> };
   const runner =
-    (q: Unsafe): Runner =>
-    async (query, args) => {
-      const r = await q.unsafe(query, args as never[]);
-      return { rows: [...r] as Row[], rowsAffected: r.count ?? 0 };
+    (q: Queryable): Runner =>
+    async (text, args) => {
+      const r = await q.query(text, args);
+      return { rows: r.rows as Row[], rowsAffected: r.rowCount ?? 0 };
     };
   return makeDb(
-    runner(sql as unknown as Unsafe),
-    (fn) => sql.begin((t) => fn(runner(t as unknown as Unsafe))) as Promise<never>,
-    () => sql.end({ timeout: 5 }),
+    runner(pool),
+    async (fn) => {
+      const client = await pool.connect();
+      let broken = false;
+      try {
+        await client.query('BEGIN');
+        const out = await fn(runner(client));
+        await client.query('COMMIT');
+        return out;
+      } catch (e) {
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          broken = true; // could not even roll back: throw this connection away instead of reusing it
+        }
+        throw e;
+      } finally {
+        client.release(broken ? new Error('discarded after a failed rollback') : undefined);
+      }
+    },
+    () => pool.end(),
   );
+}
+
+/** node-postgres reads `sslmode=require` as full certificate verification; we set SSL explicitly above instead. */
+function withoutSslMode(url: string): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.delete('sslmode');
+    return u.toString();
+  } catch {
+    return url; // an unusual string (say, an unencoded password): hand it over untouched
+  }
 }
 
 export async function createDb(url = config.databaseUrl): Promise<Db> {

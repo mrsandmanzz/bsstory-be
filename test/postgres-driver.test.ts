@@ -24,7 +24,8 @@ describe('postgres:// driver, the Supabase path', () => {
   beforeAll(async () => {
     backing = new PGlite();
     await backing.waitReady;
-    server = new PGLiteSocketServer({ db: backing, port: 54329, host: '127.0.0.1' });
+    // The app opens a few connections at once, like it does against Supabase's pooler; PGlite queues their queries.
+    server = new PGLiteSocketServer({ db: backing, port: 54329, host: '127.0.0.1', maxConnections: 10 });
     await server.start();
     db = await createDb('postgres://postgres:postgres@127.0.0.1:54329/postgres');
   }, 60_000);
