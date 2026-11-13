@@ -18,7 +18,7 @@ MainStory is a paid storybook library for toddlers: one subscription unlocks eve
 - A purchase is ownership for life and is separate from any subscription, which builds parent trust.
 - Money is protected in layers: a reservation before the card is charged, idempotency keys (a unique token per purchase, so a retry is recognised) and database unique keys.
 
-**What is built:** a Node.js API, a React web app, mock payments, a mock login, an admin panel, and an interactive reader with six stories in English and Indonesian.
+**What is built:** a Node.js API, a React web app, mock payments, a mock login, an admin panel, next-book suggestions after each story, and an interactive reader with six stories in English and Indonesian.
 
 ## Product thinking
 
@@ -127,6 +127,8 @@ The web app talks only to the API, and the API enforces every rule about access 
 ![Architecture: web app, API layers, database](architecture-overview.svg)
 
 The highlighted services layer holds the business rules and calls the pure domain functions, the mock payment gateway and the repositories. Swapping in a real payment provider changes only the payments box.
+
+The "what to read next" feature follows the same path. The route `GET /v1/books/:key/next` validates the request, the books service filters out the current book, drafts and anything the child already finished, and `domain/recommend.ts` ranks what is left: books for the same age first, then the closest age, then ones the child can open right now, then catalogue order. Locked books are included on purpose, because tapping one opens the payment flow.
 
 **Life of a purchase**
 
