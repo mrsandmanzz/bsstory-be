@@ -8,9 +8,9 @@ MainStory is a paid storybook library for toddlers: one subscription unlocks eve
 
 | Item              | Detail                                                                                              |
 | ----------------- | --------------------------------------------------------------------------------------------------- |
-| Estimated effort  | 12 hours (estimate)                                                                                 |
+| Estimated effort  | 16 hours (estimate)                                                                                 |
 | AI used           | Claude (backend, frontend, tests, documentation) and GPT (storybook and landing-page illustrations) |
-| Estimated AI cost | about US$8 (estimate)                                                                               |
+| Estimated AI cost | about US$12 (estimate)                                                                              |
 
 **Three decisions shape everything else**
 
