@@ -71,7 +71,7 @@ All responses are JSON. Errors look like `{ "error": { "code", "message", "detai
 
 The first request creates the tables and seeds the demo data, so it can take a few seconds. The schema script also turns on row level security for every table, which closes Supabase's public REST API to them: only this server's own connection can read or write.
 
-The `postgres://` path is tested against a PostgreSQL server speaking the real wire protocol (`test/postgres-driver.test.ts`), but this API has **not been deployed or verified on Vercel and Supabase yet**.
+The `postgres://` path is tested against a PostgreSQL server speaking the real wire protocol (`test/postgres-driver.test.ts`). The demo runs on Vercel with Supabase; the deployed API link is in the submission.
 
 ## Documentation
 
