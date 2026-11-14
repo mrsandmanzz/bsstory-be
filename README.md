@@ -77,4 +77,4 @@ The `postgres://` path is tested against a PostgreSQL server speaking the real w
 
 ## Documentation
 
-In [`docs/`](docs): the product thinking and system design write-up ([Markdown](docs/PRODUCT_THINKING_AND_SYSTEM_DESIGN.md), [PDF](docs/MainStory_Product_Thinking_and_System_Design.pdf)) and the [slides](docs/MainStory_Product_Slides.pdf).
+The write-up (product thinking and system design), the slides, the API documentation and the error handling reference are delivered together with the submission, not in this repository. The endpoint table above is the short version of the API documentation.
