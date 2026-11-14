@@ -34,22 +34,24 @@ Layers: `src/http` (routes and validation) â†’ `src/services` (business rules) â
 
 ## API
 
-All responses are JSON. Errors look like `{ "error": { "code", "message", "details" } }`. Auth is `Authorization: Bearer <token>`.
+All responses are JSON. Errors look like `{ "error": { "code", "message", "details" } }`; unexpected failures also carry a `requestId` (the same value as the `X-Request-Id` response header), and a database outage answers 503 with `Retry-After`. Auth is `Authorization: Bearer <token>`.
 
-| Method and path                                                  | Auth     | Purpose                                                      |
-| ---------------------------------------------------------------- | -------- | ------------------------------------------------------------ |
-| `GET /health`, `GET /v1/meta`                                    | none     | Liveness, demo accounts and test cards                       |
-| `POST /v1/auth/login`                                            | none     | Mock login, creates the user on first use                    |
-| `GET /v1/me`                                                     | user     | Account, subscription, owned books                           |
-| `GET /v1/books`, `GET /v1/books/:key`                            | optional | Catalog and one book, with per-user access                   |
-| `GET /v1/books/:key/read`                                        | optional | The content gate: full pages or the preview                  |
-| `GET /v1/books/:key/next`                                        | optional | Next-book suggestions                                        |
-| `POST /v1/books`, `PUT` and `DELETE /v1/books/:key`              | admin    | Manage books (deleting a sold book archives it)              |
-| `POST /v1/admin/images`, `GET /v1/images/:id`                    | admin    | Upload a JPEG, PNG or WebP (raw body, up to 2.5 MB); view it |
-| `GET /v1/plans`                                                  | none     | Plans, offer prices and the server clock                     |
-| `POST /v1/checkout/subscription`, `POST /v1/checkout/books/:key` | user     | Pay (send an `Idempotency-Key` header)                       |
-| `POST /v1/subscription/cancel`, `POST /v1/subscription/resume`   | user     | Cancel at period end, or undo it                             |
-| `GET /v1/billing/history`                                        | user     | Payments and purchases                                       |
+| Method and path                                                  | Auth     | Purpose                                                                                                           |
+| ---------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
+| `GET /`, `GET /health`, `GET /v1/meta`                           | none     | API name and version, liveness, demo accounts and test cards                                                      |
+| `POST /v1/auth/login`                                            | none     | Mock login, creates the user on first use                                                                         |
+| `GET /v1/me`                                                     | user     | Account, subscription, owned books                                                                                |
+| `GET /v1/books`, `GET /v1/books/:key`                            | optional | Catalog and one book, with per-user access                                                                        |
+| `GET /v1/books/:key/read`                                        | optional | The content gate: full pages or the preview                                                                       |
+| `GET /v1/books/:key/next`                                        | optional | Next-book suggestions                                                                                             |
+| `POST /v1/books`, `PUT` and `DELETE /v1/books/:key`              | admin    | Manage books (deleting a sold book archives it)                                                                   |
+| `POST /v1/admin/images`                                          | admin    | Upload a JPEG, PNG or WebP (raw body, up to 2.5 MB)                                                               |
+| `GET /v1/images/:id`                                             | none     | View an uploaded picture (cached for good)                                                                        |
+| `GET /v1/admin/books/:key`                                       | admin    | One book as the admin form needs it, drafts included                                                              |
+| `GET /v1/plans`                                                  | none     | Plans, offer prices and the server clock                                                                          |
+| `POST /v1/checkout/subscription`, `POST /v1/checkout/books/:key` | user     | Pay (an `Idempotency-Key` header is optional but recommended: a retry with the same key returns the first result) |
+| `POST /v1/subscription/cancel`, `POST /v1/subscription/resume`   | user     | Cancel at period end, or undo it                                                                                  |
+| `GET /v1/billing/history`                                        | user     | Payments and purchases                                                                                            |
 
 ## Settings
 

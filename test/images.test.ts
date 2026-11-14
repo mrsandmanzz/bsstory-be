@@ -89,7 +89,9 @@ describe('image upload and delivery', () => {
     big.set(PNG);
     const res = await upload(big, admin);
     expect(res.status).toBe(422);
-    expect(((await res.json()) as any).error.code).toBe('IMAGE_TOO_LARGE');
+    const body = (await res.json()) as any;
+    expect(body.error.code).toBe('IMAGE_TOO_LARGE');
+    expect(body.error.message).toContain('2.5 MB');
   });
 
   it('answers 404 for an unknown or malformed id', async () => {

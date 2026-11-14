@@ -111,6 +111,27 @@ describe('who is asking', () => {
   });
 });
 
+describe('a payment that is already being processed', () => {
+  it('answers 409 PAYMENT_IN_PROGRESS when the same purchase is still pending', async () => {
+    const parent = await login('parent@mainstory.test');
+    const me = (await call('GET', '/v1/me', { token: parent })).json as unknown as { user: { id: string } };
+    const book = (await call('GET', '/v1/books/the-little-red-boat')).json as unknown as { book: { id: string; price: number } };
+    // a payment someone else's request has reserved but not finished yet
+    await c.db.execute({
+      sql: `INSERT INTO payments (id, user_id, kind, ref_id, amount, currency, status, created_at) VALUES (?,?,?,?,?,?,?,?)`,
+      args: ['pending-1', me.user.id, 'book', book.book.id, book.book.price, 'IDR', 'pending', '2026-01-01T00:00:00.000Z'],
+    });
+    const card = { number: '4242 4242 4242 4242', exp: '12/39', cvc: '123' };
+    const r = await call('POST', '/v1/checkout/books/the-little-red-boat', {
+      token: parent,
+      headers: { 'Idempotency-Key': 'second-try' },
+      body: JSON.stringify({ card }),
+    });
+    expect(r.status).toBe(409);
+    expect(r.json.error.code).toBe('PAYMENT_IN_PROGRESS');
+  });
+});
+
 describe('two requests at the same moment', () => {
   it('never answers 500 when two admins save a book with the same title together', async () => {
     const admin = await login('admin@mainstory.test');

@@ -11,9 +11,7 @@ export function imagesService(repo: ReturnType<typeof imagesRepo>, clock: () => 
   return {
     async upload(data: Uint8Array) {
       if (data.byteLength === 0) throw Errors.validation([{ field: 'image', message: 'Choose an image file' }]);
-      if (data.byteLength > MAX_IMAGE_BYTES) {
-        throw new AppError(422, 'IMAGE_TOO_LARGE', `That image is too large. The limit is ${Math.round(MAX_IMAGE_BYTES / 1_000_000)} MB.`);
-      }
+      if (data.byteLength > MAX_IMAGE_BYTES) throw Errors.imageTooLarge();
       const type = detectImageType(data);
       if (!type) throw new AppError(422, 'IMAGE_TYPE_NOT_ALLOWED', 'Upload a JPEG, PNG or WebP image.');
       const id = randomUUID();

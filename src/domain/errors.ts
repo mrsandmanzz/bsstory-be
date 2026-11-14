@@ -1,3 +1,5 @@
+import { MAX_IMAGE_BYTES } from './image.js';
+
 /** Application errors carry an HTTP status and a stable machine-readable code. */
 export class AppError extends Error {
   constructor(
@@ -15,7 +17,6 @@ export const Errors = {
   unauthenticated: () => new AppError(401, 'UNAUTHENTICATED', 'Please log in to continue'),
   forbidden: (msg = 'You do not have permission to do this') => new AppError(403, 'FORBIDDEN', msg),
   notFound: (what = 'Resource') => new AppError(404, 'NOT_FOUND', `${what} not found`),
-  locked: () => new AppError(403, 'CONTENT_LOCKED', 'Subscribe or buy this book to read it'),
   alreadyOwned: () => new AppError(409, 'ALREADY_OWNED', 'You already own this book'),
   alreadySubscribed: () => new AppError(409, 'ALREADY_SUBSCRIBED', 'You already have an active subscription'),
   notPurchasable: () => new AppError(409, 'NOT_PURCHASABLE', 'This book is not available for purchase'),
@@ -26,5 +27,6 @@ export const Errors = {
   priceChanged: (price: number) =>
     new AppError(409, 'PRICE_CHANGED', 'The price changed while you were checking out. Nothing was charged.', { price }),
   conflict: (msg: string) => new AppError(409, 'CONFLICT', msg),
+  imageTooLarge: () => new AppError(422, 'IMAGE_TOO_LARGE', `That image is too large. The limit is ${MAX_IMAGE_BYTES / 1_000_000} MB.`),
   payloadTooLarge: (limit: string) => new AppError(413, 'PAYLOAD_TOO_LARGE', `The request is too large. The limit is ${limit}.`),
 };

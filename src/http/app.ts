@@ -84,7 +84,10 @@ export function createApp(getContainer: () => Promise<Container>) {
   // Reject oversized JSON before reading it (the image upload route has its own limit).
   const jsonLimit = bodyLimit({
     maxSize: MAX_JSON_BYTES,
-    onError: (ctx) => ctx.json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'The request is too large. The limit is 500 KB.' } }, 413),
+    onError: (ctx) => {
+      const e = Errors.payloadTooLarge('500 KB');
+      return ctx.json({ error: { code: e.code, message: e.message } }, e.status);
+    },
   });
   app.use('/v1/*', (ctx, next) => (ctx.req.path === '/v1/admin/images' ? next() : jsonLimit(ctx, next)));
 
@@ -170,7 +173,7 @@ export function createApp(getContainer: () => Promise<Container>) {
   app.post('/v1/admin/images', async (ctx) => {
     requireAdmin(ctx);
     const declared = Number(ctx.req.header('Content-Length') ?? 0);
-    if (declared > MAX_IMAGE_BYTES + 1024) throw new AppError(422, 'IMAGE_TOO_LARGE', 'That image is too large.');
+    if (declared > MAX_IMAGE_BYTES + 1024) throw Errors.imageTooLarge();
     return ctx.json(await ctx.get('c').images.upload(new Uint8Array(await ctx.req.arrayBuffer())), 201);
   });
   /** Public on purpose: a cover is shown to everyone, and a page picture's id is only ever sent with pages the reader may open. */
