@@ -114,11 +114,20 @@ describe('postgres:// driver, the Supabase path', () => {
     expect(again.status).toBe(409);
   }, 60_000);
 
+  it('stores and returns binary image data intact over the real driver', async () => {
+    const bytes = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 1, 2, 253, 254, 255]);
+    const c = buildContainer(db, () => new Date('2026-01-01T00:00:00Z'), null);
+    const { url } = await c.images.upload(bytes);
+    const back = await c.images.get(url.split('/').pop() ?? '');
+    expect(back.contentType).toBe('image/png');
+    expect(Array.from(back.data)).toEqual(Array.from(bytes));
+  });
+
   it("enables row level security on every table, so Supabase's public REST API cannot read them", async () => {
     const r = await db.execute(
-      `SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('users','books','book_pages','subscriptions','payments','purchases')`,
+      `SELECT relname, relrowsecurity FROM pg_class WHERE relname IN ('users','books','book_pages','subscriptions','payments','purchases','images')`,
     );
-    expect(r.rows).toHaveLength(6);
+    expect(r.rows).toHaveLength(7);
     expect(r.rows.every((row) => row.relrowsecurity === true)).toBe(true);
   });
 });

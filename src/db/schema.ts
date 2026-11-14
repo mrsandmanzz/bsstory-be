@@ -81,10 +81,18 @@ const STATEMENTS = [
     created_at TEXT NOT NULL,
     UNIQUE (user_id, book_id)
   )`,
+  // Uploaded pictures. The database is the only durable storage a serverless function has, so they live here.
+  `CREATE TABLE IF NOT EXISTS images (
+    id TEXT PRIMARY KEY,
+    content_type TEXT NOT NULL CHECK (content_type IN ('image/jpeg','image/png','image/webp')),
+    data BYTEA NOT NULL,
+    size INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
   `CREATE INDEX IF NOT EXISTS ix_books_status ON books(status)`,
 ];
 
-const TABLES = ['users', 'books', 'book_pages', 'subscriptions', 'payments', 'purchases'];
+const TABLES = ['users', 'books', 'book_pages', 'subscriptions', 'payments', 'purchases', 'images'];
 
 export async function migrate(db: Db): Promise<void> {
   await db.transaction(async (tx) => {

@@ -5,10 +5,12 @@ import { migrate } from './db/schema.js';
 import { seedIfEmpty } from './db/seed.js';
 import { billingRepo } from './repositories/billing.js';
 import { booksRepo } from './repositories/books.js';
+import { imagesRepo } from './repositories/images.js';
 import { usersRepo } from './repositories/users.js';
 import { authService } from './services/auth.js';
 import { billingService } from './services/billing.js';
 import { booksService } from './services/books.js';
+import { imagesService } from './services/images.js';
 
 /** Composition root: the only place that wires concrete implementations together. */
 export function buildContainer(db: Db, clock: () => Date = () => new Date(), offer: Promo | null = promo) {
@@ -21,6 +23,7 @@ export function buildContainer(db: Db, clock: () => Date = () => new Date(), off
     auth: authService(users, clock),
     books: booksService(books, billing, billingSvc.currentSubscription, clock),
     billing: billingSvc,
+    images: imagesService(imagesRepo(db), clock),
     /** Idempotent: brings an empty DB to a working demo state. Safe to call on every cold start. */
     async bootstrap() {
       await migrate(db);

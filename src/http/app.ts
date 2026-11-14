@@ -8,6 +8,7 @@ import { AppError, Errors } from '../domain/errors.js';
 import type { User } from '../domain/types.js';
 import { TEST_CARDS } from '../payments/mockGateway.js';
 import { cardInput } from '../services/billing.js';
+import { MAX_IMAGE_BYTES } from '../domain/image.js';
 import { bookInput } from '../services/books.js';
 
 export type Env = { Variables: { c: Container; user: User | null } };
@@ -52,7 +53,8 @@ const listQuery = z.object({
 export function createApp(getContainer: () => Promise<Container>) {
   const app = new Hono<Env>();
 
-  app.use('*', secureHeaders());
+  // The web app lives on another origin and shows our images in <img> tags, which the default `same-origin` policy blocks.
+  app.use('*', secureHeaders({ crossOriginResourcePolicy: 'cross-origin' }));
   app.use(
     '*',
     cors({
@@ -137,6 +139,24 @@ export function createApp(getContainer: () => Promise<Container>) {
   app.delete('/v1/books/:key', async (ctx) => {
     requireAdmin(ctx);
     return ctx.json(await ctx.get('c').books.remove(ctx.req.param('key')));
+  });
+
+  // ---- Images (admin uploads, anyone views) ----
+  /** The body is the raw image file, so no multipart parser is needed. The reply holds the path to save on a book. */
+  app.post('/v1/admin/images', async (ctx) => {
+    requireAdmin(ctx);
+    const declared = Number(ctx.req.header('Content-Length') ?? 0);
+    if (declared > MAX_IMAGE_BYTES + 1024) throw new AppError(422, 'IMAGE_TOO_LARGE', 'That image is too large.');
+    return ctx.json(await ctx.get('c').images.upload(new Uint8Array(await ctx.req.arrayBuffer())), 201);
+  });
+  /** Public on purpose: a cover is shown to everyone, and a page picture's id is only ever sent with pages the reader may open. */
+  app.get('/v1/images/:id', async (ctx) => {
+    const image = await ctx.get('c').images.get(ctx.req.param('id'));
+    return ctx.body(image.data as Uint8Array<ArrayBuffer>, 200, {
+      'Content-Type': image.contentType,
+      // The id never changes what it points to, so browsers and CDNs can keep it for good.
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    });
   });
 
   // ---- Billing (mock payments) ----
