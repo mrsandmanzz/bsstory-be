@@ -1,7 +1,7 @@
 /** Application errors carry an HTTP status and a stable machine-readable code. */
 export class AppError extends Error {
   constructor(
-    public status: 400 | 401 | 402 | 403 | 404 | 409 | 422 | 500,
+    public status: 400 | 401 | 402 | 403 | 404 | 409 | 413 | 422 | 500 | 503,
     public code: string,
     message: string,
     public details?: unknown,
@@ -26,4 +26,5 @@ export const Errors = {
   priceChanged: (price: number) =>
     new AppError(409, 'PRICE_CHANGED', 'The price changed while you were checking out. Nothing was charged.', { price }),
   conflict: (msg: string) => new AppError(409, 'CONFLICT', msg),
+  payloadTooLarge: (limit: string) => new AppError(413, 'PAYLOAD_TOO_LARGE', `The request is too large. The limit is ${limit}.`),
 };

@@ -171,3 +171,31 @@ export async function createDb(url = config.databaseUrl): Promise<Db> {
 /** True for PostgreSQL unique-constraint failures (SQLSTATE 23505). */
 export const isUniqueViolation = (e: unknown): boolean =>
   (e as { code?: string } | null)?.code === '23505' || /duplicate key value violates unique constraint/i.test(String(e));
+
+const UNAVAILABLE_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EPIPE',
+  '28P01',
+  '28000',
+  '53300',
+  '57P01',
+  '57P02',
+  '57P03',
+]);
+
+/**
+ * True when the database could not be reached or refused us (it is down, restarting, out of connections, or the
+ * connection settings are wrong). Callers answer 503 "try again" instead of a bare 500. SQLSTATE class 08 is
+ * "connection exception".
+ */
+export function isDatabaseUnavailable(e: unknown): boolean {
+  const err = e as { code?: string; message?: string } | null;
+  if (err?.code && (UNAVAILABLE_CODES.has(err.code) || err.code.startsWith('08'))) return true;
+  return /Connection terminated|timeout exceeded when trying to connect|Tenant or user not found|password authentication failed|too many clients|ECONNREFUSED/i.test(
+    String(err?.message ?? ''),
+  );
+}

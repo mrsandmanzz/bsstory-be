@@ -1,5 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { Hono, type Context } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
+import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 import { z, type ZodTypeAny } from 'zod';
 import { config } from '../config.js';
@@ -8,10 +11,14 @@ import { AppError, Errors } from '../domain/errors.js';
 import type { User } from '../domain/types.js';
 import { TEST_CARDS } from '../payments/mockGateway.js';
 import { cardInput } from '../services/billing.js';
+import { isDatabaseUnavailable, isUniqueViolation } from '../db/client.js';
 import { MAX_IMAGE_BYTES } from '../domain/image.js';
 import { bookInput } from '../services/books.js';
 
-export type Env = { Variables: { c: Container; user: User | null } };
+export type Env = { Variables: { c: Container; user: User | null; requestId: string } };
+
+/** Every JSON body is small (a whole book is well under this). Image uploads have their own, larger limit. */
+const MAX_JSON_BYTES = 512_000;
 
 async function parse<T extends ZodTypeAny>(ctx: Context, schema: T): Promise<z.infer<T>> {
   let body: unknown;
@@ -61,8 +68,25 @@ export function createApp(getContainer: () => Promise<Container>) {
       origin: config.allowedOrigins.includes('*') ? '*' : config.allowedOrigins,
       allowHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
       allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      // So the web app can read them from an error response and show them to a person who contacts support.
+      exposeHeaders: ['X-Request-Id', 'Retry-After'],
     }),
   );
+
+  // A short id on every response. It is also logged next to any unexpected error, so one id finds the log line.
+  app.use('*', async (ctx, next) => {
+    const requestId = randomUUID();
+    ctx.set('requestId', requestId);
+    ctx.header('X-Request-Id', requestId);
+    await next();
+  });
+
+  // Reject oversized JSON before reading it (the image upload route has its own limit).
+  const jsonLimit = bodyLimit({
+    maxSize: MAX_JSON_BYTES,
+    onError: (ctx) => ctx.json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'The request is too large. The limit is 500 KB.' } }, 413),
+  });
+  app.use('/v1/*', (ctx, next) => (ctx.req.path === '/v1/admin/images' ? next() : jsonLimit(ctx, next)));
 
   // Wire the container, then resolve the (optional) user from the Bearer token.
   app.use('*', async (ctx, next) => {
@@ -183,8 +207,26 @@ export function createApp(getContainer: () => Promise<Container>) {
     if (err instanceof AppError) {
       return ctx.json({ error: { code: err.code, message: err.message, details: err.details } }, err.status);
     }
-    console.error(err);
-    return ctx.json({ error: { code: 'INTERNAL', message: 'Something went wrong on our side' } }, 500);
+    // Framework-level rejections (for example a malformed request) keep the same error shape as ours.
+    if (err instanceof HTTPException) {
+      const code = err.status === 413 ? 'PAYLOAD_TOO_LARGE' : 'BAD_REQUEST';
+      return ctx.json({ error: { code, message: err.message || 'The request could not be understood' } }, err.status);
+    }
+    // Anything else is unexpected. The person gets a safe message and an id; the real cause stays in the log.
+    const requestId = ctx.get('requestId') ?? randomUUID();
+    console.error(`[${requestId}] ${ctx.req.method} ${new URL(ctx.req.url).pathname}`, err);
+    if (isDatabaseUnavailable(err)) {
+      ctx.header('Retry-After', '5');
+      return ctx.json(
+        { error: { code: 'SERVICE_UNAVAILABLE', message: 'The service is busy or restarting. Please try again in a moment.', requestId } },
+        503,
+      );
+    }
+    if (isUniqueViolation(err)) {
+      // Two requests raced and the database's own rule said no. Nothing was duplicated.
+      return ctx.json({ error: { code: 'CONFLICT', message: 'That already exists. Reload and try again.', requestId } }, 409);
+    }
+    return ctx.json({ error: { code: 'INTERNAL', message: 'Something went wrong on our side', requestId } }, 500);
   });
 
   return app;
